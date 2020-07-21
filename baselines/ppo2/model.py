@@ -1,6 +1,6 @@
 import tensorflow as tf
 from baselines.common.policies import PolicyWithValue
-
+import pickle
 try:
     from baselines.common.mpi_adam_optimizer import MpiAdamOptimizer
     from mpi4py import MPI
@@ -39,7 +39,7 @@ class Model(tf.Module):
           sync_from_root(self.variables)
 
     def train(self, lr, cliprange, obs, returns, masks, actions, values, neglogpac_old, states=None):
-        grads, pg_loss, vf_loss, entropy, approxkl, clipfrac = self.get_grad(
+        grads, pg_loss, vf_loss, entropy, approxkl, clipfrac, clipped_count = self.get_grad(
             cliprange, obs, returns, masks, actions, values, neglogpac_old)
         if MPI is not None:
             self.optimizer.apply_gradients(grads, lr)
@@ -48,7 +48,7 @@ class Model(tf.Module):
             grads_and_vars = zip(grads, self.train_model.trainable_variables)
             self.optimizer.apply_gradients(grads_and_vars)
 
-        return pg_loss, vf_loss, entropy, approxkl, clipfrac
+        return pg_loss, vf_loss, entropy, approxkl, clipfrac, clipped_count
 
 
     @tf.function
@@ -69,7 +69,10 @@ class Model(tf.Module):
             vpredclipped = values + tf.clip_by_value(vpred - values, -cliprange, cliprange)
             vf_losses1 = tf.square(vpred - returns)
             vf_losses2 = tf.square(vpredclipped - returns)
-            vf_loss = .5 * tf.reduce_mean(tf.maximum(vf_losses1, vf_losses2))
+            vf_loss_max = tf.maximum(vf_losses1, vf_losses2)
+            vf_loss = .5 * tf.reduce_mean(vf_loss_max)
+            vf_loss_diff = tf.greater(vf_losses2, vf_losses1)
+            clipped_count = tf.math.count_nonzero(vf_loss_diff)
 
             ratio = tf.exp(neglogpac_old - neglogpac)
             pg_losses1 = -advs * ratio
@@ -87,4 +90,4 @@ class Model(tf.Module):
             grads, _ = tf.clip_by_global_norm(grads, self.max_grad_norm)
         if MPI is not None:
             grads = tf.concat([tf.reshape(g, (-1,)) for g in grads], axis=0)
-        return grads, pg_loss, vf_loss, entropy, approxkl, clipfrac
+        return grads, pg_loss, vf_loss, entropy, approxkl, clipfrac, clipped_count

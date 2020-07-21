@@ -11,6 +11,8 @@ try:
 except ImportError:
     MPI = None
 from baselines.ppo2.runner import Runner
+import pickle
+import os.path
 
 def constfn(val):
     def f(_):
@@ -128,6 +130,8 @@ def learn(*, network, env, total_timesteps, eval_env = None, seed=None, nsteps=2
     tfirststart = time.perf_counter()
 
     nupdates = total_timesteps//nbatch
+
+    clipped_vals = []
     for update in range(1, nupdates+1):
         assert nbatch % nminibatches == 0
         # Start timer
@@ -167,6 +171,10 @@ def learn(*, network, env, total_timesteps, eval_env = None, seed=None, nsteps=2
             raise ValueError('Not Support Yet')
 
         # Feedforward --> get losses --> update
+        clipped_val = []
+        for lossval in mblossvals:
+            clipped_val.append(lossval[-1])
+        clipped_vals.append(clipped_val)
         lossvals = np.mean(mblossvals, axis=0)
         # End timer
         tnow = time.perf_counter()
@@ -191,6 +199,20 @@ def learn(*, network, env, total_timesteps, eval_env = None, seed=None, nsteps=2
                 logger.logkv('loss/' + lossname, lossval)
 
             logger.dumpkvs()
+    i = 1
+    # path_to_file = '/mnt/SSD/Marko/Dokumente/Uni/SoSe20/Minecraft/baselines/results/{}-{}_{}_{}.pickle'\
+    #     .format(env.spec.id, i, nbatch, total_timesteps)
+    path_to_file = '../../results/{}-{}_{}_{}.pickle'.format(env.spec.id, i, nbatch, total_timesteps)
+    while os.path.isfile(path_to_file):
+        i = i + 1
+        # path_to_file = '/mnt/SSD/Marko/Dokumente/Uni/SoSe20/Minecraft/baselines/results/{}-{}_{}_{}.pickle' \
+        #     .format(env.spec.id, i, nbatch, total_timesteps)
+        path_to_file = '../../results/{}-{}_{}_{}.pickle'.format(env.spec.id, i, nbatch, total_timesteps)
+    with open(path_to_file) as b:
+        pickle.dump(clipped_vals, b)
+    # flattened = [val for sublist in clipped_vals for val in sublist]
+    # plt.plot(range(nupdates*noptepochs*nbatch//nbatch_train), flattened)
+    # plt.show()
 
     return model
 # Avoid division error when calculate the mean (in our case if epinfo is empty returns np.nan, not return an error)
