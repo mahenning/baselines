@@ -130,7 +130,7 @@ def learn(*, network, env, total_timesteps, eval_env = None, seed=None, nsteps=2
     tfirststart = time.perf_counter()
 
     nupdates = total_timesteps//nbatch
-
+    print(env.spec.id+": ")
     clipped_vals = []
     for update in range(1, nupdates+1):
         assert nbatch % nminibatches == 0
@@ -158,8 +158,11 @@ def learn(*, network, env, total_timesteps, eval_env = None, seed=None, nsteps=2
             # Index of each element of batch_size
             # Create the indices array
             inds = np.arange(nbatch)
-            for _ in range(noptepochs):
+            print("Update: {}".format(update))
+            for j in range(noptepochs):
                 # Randomize the indexes
+                if j % 100 == 0:
+                    print("{}, ".format(j), end="")
                 np.random.shuffle(inds)
                 # 0 to batch_size with batch_train_size step
                 for start in range(0, nbatch, nbatch_train):
@@ -169,12 +172,13 @@ def learn(*, network, env, total_timesteps, eval_env = None, seed=None, nsteps=2
                     mblossvals.append(model.train(lrnow, cliprangenow, *slices))
         else: # recurrent version
             raise ValueError('Not Support Yet')
-
+        print("\n")
         # Feedforward --> get losses --> update
         clipped_val = []
         for lossval in mblossvals:
             clipped_val.append(lossval[-1])
         clipped_vals.append(clipped_val)
+        mblossvals = [x[:-1] for x in mblossvals]
         lossvals = np.mean(mblossvals, axis=0)
         # End timer
         tnow = time.perf_counter()
@@ -202,13 +206,16 @@ def learn(*, network, env, total_timesteps, eval_env = None, seed=None, nsteps=2
     i = 1
     # path_to_file = '/mnt/SSD/Marko/Dokumente/Uni/SoSe20/Minecraft/baselines/results/{}-{}_{}_{}.pickle'\
     #     .format(env.spec.id, i, nbatch, total_timesteps)
-    path_to_file = '../../results/{}-{}_{}_{}.pickle'.format(env.spec.id, i, nbatch, total_timesteps)
+    path_to_file = os.path.dirname(__file__)[:-14]+'results/big_epochs/{}-{}_{}_{}_{}.pickle'\
+        .format(env.spec.id, i, nbatch, noptepochs, total_timesteps)
     while os.path.isfile(path_to_file):
         i = i + 1
         # path_to_file = '/mnt/SSD/Marko/Dokumente/Uni/SoSe20/Minecraft/baselines/results/{}-{}_{}_{}.pickle' \
         #     .format(env.spec.id, i, nbatch, total_timesteps)
-        path_to_file = '../../results/{}-{}_{}_{}.pickle'.format(env.spec.id, i, nbatch, total_timesteps)
-    with open(path_to_file) as b:
+        path_to_file = os.path.dirname(__file__)[:-14] + 'results/big_epochs/{}-{}_{}_{}_{}.pickle' \
+            .format(env.spec.id, i, nbatch, noptepochs, total_timesteps)
+    with open(path_to_file, 'wb') as b:
+        print(path_to_file)
         pickle.dump(clipped_vals, b)
     # flattened = [val for sublist in clipped_vals for val in sublist]
     # plt.plot(range(nupdates*noptepochs*nbatch//nbatch_train), flattened)

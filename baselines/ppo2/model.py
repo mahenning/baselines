@@ -90,4 +90,4 @@ class Model(tf.Module):
             grads, _ = tf.clip_by_global_norm(grads, self.max_grad_norm)
         if MPI is not None:
             grads = tf.concat([tf.reshape(g, (-1,)) for g in grads], axis=0)
-        return grads, pg_loss, vf_loss, entropy, approxkl, clipfrac, clipped_count
+        return grads, pg_loss, vf_loss, entropy, approxkl, clipfrac, vf_loss_diff
